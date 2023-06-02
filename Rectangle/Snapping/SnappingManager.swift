@@ -222,6 +222,10 @@ class SnappingManager {
             windowIdAttempt = 0
             lastWindowIdAttempt = nil
         case .leftMouseDragged:
+            if NSEvent.pressedMouseButtons < 2 {
+                return
+            }
+            
             if windowId == nil, windowIdAttempt < 20 {
                 if let lastWindowIdAttempt = lastWindowIdAttempt {
                     if event.timestamp - lastWindowIdAttempt < 0.1 {
@@ -413,7 +417,8 @@ class SnappingManager {
     
     func directionalLocationOfCursor(loc: NSPoint, screen: NSScreen) -> Directional? {
         let frame = screen.frame
-        let cornerSize = Defaults.cornerSnapAreaSize.cgFloat
+        let cornerWidth = screen.frame.width / 3
+        let cornerHeight = screen.frame.height / 2 * 0.7
         
         /// cgrect contains doesn't include max edges, so manually compare
         guard loc.x >= frame.minX,
@@ -422,34 +427,34 @@ class SnappingManager {
               loc.y <= frame.maxY
         else { return nil }
         
-        if loc.x < frame.minX + marginLeft + cornerSize {
-            if loc.y >= frame.maxY - marginTop - cornerSize {
+        if loc.x < frame.minX + cornerWidth {
+            if loc.y >= frame.maxY - cornerHeight {
                 return .tl
             }
-            if loc.y <= frame.minY + marginBottom + cornerSize {
+            if loc.y <= frame.minY - screen.frame.height + cornerHeight {
                 return .bl
             }
-            if loc.x < frame.minX + marginLeft {
+            if loc.x < frame.minX {
                 return .l
             }
         }
         
-        if loc.x > frame.maxX - marginRight - cornerSize {
-            if loc.y >= frame.maxY - marginTop - cornerSize {
+        if loc.x > frame.maxX - cornerWidth {
+            if loc.y >= frame.maxY - cornerHeight {
                 return .tr
             }
-            if loc.y <= frame.minY + marginBottom + cornerSize {
+            if loc.y <= frame.minY - screen.frame.height + cornerHeight {
                 return .br
             }
-            if loc.x > frame.maxX - marginRight {
+            if loc.x > frame.maxX {
                 return .r
             }
         }
         
-        if loc.y > frame.maxY - marginTop {
+        if loc.y > frame.maxY - cornerHeight {
             return .t
         }
-        if loc.y < frame.minY + marginBottom {
+        if loc.y < frame.minY + screen.frame.height - cornerHeight {
             return .b
         }
         

@@ -42,9 +42,9 @@ class TopCenterSixthCalculation: WindowCalculation, OrientationAware {
     func landscapeRect(_ visibleFrameOfScreen: CGRect) -> RectResult {
         var rect = visibleFrameOfScreen
         rect.size.width = floor(visibleFrameOfScreen.width / 3.0)
-        rect.size.height = floor(visibleFrameOfScreen.height / 2.0)
+        rect.size.height = floor(visibleFrameOfScreen.height / 2.0 * 0.7)
         rect.origin.x = visibleFrameOfScreen.minX + rect.width
-        rect.origin.y = visibleFrameOfScreen.minY + rect.height
+        rect.origin.y = visibleFrameOfScreen.minY + visibleFrameOfScreen.height - rect.size.height
         return RectResult(rect, subAction: .topCenterSixthLandscape)
     }
     
