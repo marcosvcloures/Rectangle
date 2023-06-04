@@ -26,6 +26,7 @@ class SnappingManager {
     var windowMoving: Bool = false
     var isFullScreen: Bool = false
     var allowListening: Bool = true
+    var canSnap: Bool = false
     var initialWindowRect: CGRect?
     var currentSnapArea: SnapArea?
     var dragPrevY: Double?
@@ -135,7 +136,7 @@ class SnappingManager {
     }
     
     private func startEventMonitor() {
-        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseUp, .leftMouseDragged]
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown]
         eventMonitor = Defaults.missionControlDragging.userDisabled ? ActiveEventMonitor(mask: mask, filterer: filter, handler: handle) : PassiveEventMonitor(mask: mask, handler: handle)
         eventMonitor?.start()
     }
@@ -183,46 +184,19 @@ class SnappingManager {
     }
     
     func handle(event: NSEvent) {
-        switch event.type {
-        case .leftMouseDown:
-            if !Defaults.obtainWindowOnClick.userDisabled {
-                windowElement = AccessibilityElement.getWindowElementUnderCursor()
-                windowId = windowElement?.getWindowId()
-                initialWindowRect = windowElement?.frame
+        func updateCanSnap() {
+            if canSnap {
+                canSnap = false
+                return
             }
-        case .leftMouseUp:
-            if let currentSnapArea = self.currentSnapArea {
+            
+            canSnap = NSEvent.pressedMouseButtons >= 2
+        }
+        
+        func tryToSnap() {
+            if !canSnap {
                 box?.orderOut(nil)
-                currentSnapArea.action.postSnap(windowElement: windowElement, windowId: windowId, screen: currentSnapArea.screen)
                 self.currentSnapArea = nil
-            } else {
-                // it's possible that the window has moved, but the mouse dragged events are not getting the updated window position
-                // this typically only happens if the user is dragging and dropping windows really quickly
-                // in this scenario, the footprint doesn't display but the snap will still occur, as long as the window position is updated as of mouse up.
-                if let currentRect = windowElement?.frame,
-                   let windowId = windowId,
-                   currentRect.size == initialWindowRect?.size,
-                   currentRect.origin != initialWindowRect?.origin {
-  
-                    unsnapRestore(windowId: windowId, currentRect: currentRect, cursorLoc: event.cgEvent?.location)
-                    
-                    if let snapArea = snapAreaContainingCursor(priorSnapArea: currentSnapArea)  {
-                        box?.orderOut(nil)
-                        if canSnap(event) {
-                            snapArea.action.postSnap(windowElement: windowElement, windowId: windowId, screen: snapArea.screen)
-                        }
-                        self.currentSnapArea = nil
-                    }
-                }
-            }
-            windowElement = nil
-            windowId = nil
-            windowMoving = false
-            initialWindowRect = nil
-            windowIdAttempt = 0
-            lastWindowIdAttempt = nil
-        case .leftMouseDragged:
-            if NSEvent.pressedMouseButtons < 2 {
                 return
             }
             
@@ -299,6 +273,35 @@ class SnappingManager {
                     }
                 }
             }
+        }
+        
+        switch event.type {
+        case .leftMouseDown:
+            if !Defaults.obtainWindowOnClick.userDisabled {
+                windowElement = AccessibilityElement.getWindowElementUnderCursor()
+                windowId = windowElement?.getWindowId()
+                initialWindowRect = windowElement?.frame
+            }
+            
+            updateCanSnap()
+            tryToSnap()
+        case .leftMouseUp:
+            if let currentSnapArea = self.currentSnapArea {
+                box?.orderOut(nil)
+                currentSnapArea.action.postSnap(windowElement: windowElement, windowId: windowId, screen: currentSnapArea.screen)
+                self.currentSnapArea = nil
+            }
+            windowElement = nil
+            windowId = nil
+            windowMoving = false
+            initialWindowRect = nil
+            windowIdAttempt = 0
+            lastWindowIdAttempt = nil
+        case .rightMouseDown:
+            updateCanSnap()
+            tryToSnap()
+        case .leftMouseDragged:
+            tryToSnap()
         default:
             return
         }
