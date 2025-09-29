@@ -23,10 +23,12 @@ class SettingsViewController: NSViewController {
     @IBOutlet weak var gapSlider: NSSlider!
     @IBOutlet weak var gapLabel: NSTextField!
     @IBOutlet weak var cursorAcrossCheckbox: NSButton!
+    @IBOutlet weak var useCursorScreenDetectionCheckbox: NSButton!
     @IBOutlet weak var doubleClickTitleBarCheckbox: NSButton!
     @IBOutlet weak var todoCheckbox: NSButton!
     @IBOutlet weak var todoView: NSStackView!
     @IBOutlet weak var todoAppWidthField: AutoSaveFloatField!
+    @IBOutlet weak var todoAppWidthUnitPopUpButton: NSPopUpButton!
     @IBOutlet weak var todoAppSidePopUpButton: NSPopUpButton!
     @IBOutlet weak var toggleTodoShortcutView: MASShortcutView!
     @IBOutlet weak var reflowTodoShortcutView: MASShortcutView!
@@ -34,7 +36,16 @@ class SettingsViewController: NSViewController {
     @IBOutlet weak var stageSlider: NSSlider!
     @IBOutlet weak var stageLabel: NSTextField!
     
+    @IBOutlet weak var cycleSizesView: NSStackView!
+    
+    @IBOutlet var cycleSizesViewHeightConstraint: NSLayoutConstraint!
+    
+    @IBOutlet var todoViewHeightConstraint: NSLayoutConstraint!
+    
+    
     private var aboutTodoWindowController: NSWindowController?
+    
+    private var cycleSizeCheckboxes = [NSButton]()
     
     @IBAction func toggleLaunchOnLogin(_ sender: NSButton) {
         let newSetting: Bool = sender.state == .on
@@ -64,6 +75,7 @@ class SettingsViewController: NSViewController {
         }
 
         Defaults.subsequentExecutionMode.value = mode
+        initializeCycleSizesView(animated: true)
     }
     
     @IBAction func gapSliderChanged(_ sender: NSSlider) {
@@ -81,7 +93,12 @@ class SettingsViewController: NSViewController {
         let newSetting: Bool = sender.state == .on
         Defaults.moveCursorAcrossDisplays.enabled = newSetting
     }
-    
+
+    @IBAction func toggleUseCursorScreenDetection(_ sender: NSButton) {
+        let newSetting: Bool = sender.state == .on
+        Defaults.useCursorScreenDetection.enabled = newSetting
+    }
+
     @IBAction func toggleAllowAnyShortcut(_ sender: NSButton) {
         let newSetting: Bool = sender.state == .on
         Defaults.allowAnyShortcut.enabled = newSetting
@@ -123,7 +140,7 @@ class SettingsViewController: NSViewController {
     @IBAction func toggleTodoMode(_ sender: NSButton) {
         let newSetting: Bool = sender.state == .on
         Defaults.todo.enabled = newSetting
-        showHideTodoModeSettings()
+        showHideTodoModeSettings(animated: true)
         Notification.Name.todoMenuToggled.post()
     }
     
@@ -133,6 +150,25 @@ class SettingsViewController: NSViewController {
         }
         NSApp.activate(ignoringOtherApps: true)
         aboutTodoWindowController?.showWindow(self)
+    }
+    
+    @IBAction func setTodoWidthUnit(_ sender: NSPopUpButton) {
+        let tag = sender.selectedTag()
+        guard let unit = TodoSidebarWidthUnit(rawValue: tag) else {
+            Logger.log("Expected a pop up button to have a selected item with a valid tag matching a value of TodoSidebarWidthUnit. Got: \(String(describing: tag))")
+            return
+        }
+        Defaults.todoSidebarWidthUnit.value = unit
+        
+        TodoManager.refreshTodoScreen()
+        
+        if let visibleFrameWidth = TodoManager.todoScreen?.visibleFrame.width {
+            let newValue = TodoManager.convert(width: Defaults.todoSidebarWidth.cgFloat, toUnit: unit, visibleFrameWidth: visibleFrameWidth)
+            Defaults.todoSidebarWidth.value = Float(newValue)
+            todoAppWidthField.stringValue = "\(newValue)"
+        }
+
+        TodoManager.moveAllIfNeeded(false)
     }
     
     @IBAction func setTodoAppSide(_ sender: NSPopUpButton) {
@@ -160,6 +196,7 @@ class SettingsViewController: NSViewController {
     }
     
     @IBAction func restoreDefaults(_ sender: Any) {
+        // Ask user if they want to restore to Rectangle or Spectacle defaults
         let currentDefaults = Defaults.alternateDefaultShortcuts.enabled ? "Rectangle" : "Spectacle"
         let defaultShortcutsTitle = NSLocalizedString("Default Shortcuts", tableName: "Main", value: "", comment: "")
         let currentlyUsingText = NSLocalizedString("Currently using: ", tableName: "Main", value: "", comment: "")
@@ -167,12 +204,18 @@ class SettingsViewController: NSViewController {
         let response = AlertUtil.threeButtonAlert(question: defaultShortcutsTitle, text: currentlyUsingText + currentDefaults, buttonOneText: "Rectangle", buttonTwoText: "Spectacle", buttonThreeText: cancelText)
         if response == .alertThirdButtonReturn { return }
 
+        //  Restore default shortcuts
         WindowAction.active.forEach { UserDefaults.standard.removeObject(forKey: $0.name) }
         let rectangleDefaults = response == .alertFirstButtonReturn
         if rectangleDefaults != Defaults.alternateDefaultShortcuts.enabled {
             Defaults.alternateDefaultShortcuts.enabled = rectangleDefaults
             Notification.Name.changeDefaults.post()
         }
+        
+        // Restore snap areas
+        Defaults.portraitSnapAreas.typedValue = nil
+        Defaults.landscapeSnapAreas.typedValue = nil
+        Notification.Name.defaultSnapAreas.post()
     }
     
     @IBAction func exportConfig(_ sender: NSButton) {
@@ -219,9 +262,22 @@ class SettingsViewController: NSViewController {
         
         initializeTodoModeSettings()
         
+        self.cycleSizeCheckboxes.forEach {
+            $0.removeFromSuperview()
+        }
+        
+        let cycleSizeCheckboxes = makeCycleSizeCheckboxes()
+        cycleSizeCheckboxes.forEach { checkbox in
+            cycleSizesView.addArrangedSubview(checkbox)
+        }
+        self.cycleSizeCheckboxes = cycleSizeCheckboxes
+        
+        initializeCycleSizesView(animated: false)
+        
         Notification.Name.configImported.onPost(using: {_ in
             self.initializeTodoModeSettings()
             self.initializeToggles()
+            self.initializeCycleSizesView(animated: false)
         })
         
         Notification.Name.menuBarIconHidden.onPost(using: {_ in
@@ -237,16 +293,21 @@ class SettingsViewController: NSViewController {
         todoAppWidthField.defaultsSetAction = {
             TodoManager.moveAllIfNeeded(false)
         }
+        todoAppWidthUnitPopUpButton.selectItem(withTag: Defaults.todoSidebarWidthUnit.value.rawValue)
         todoAppSidePopUpButton.selectItem(withTag: Defaults.todoSidebarSide.value.rawValue)
         TodoManager.initToggleShortcut()
         TodoManager.initReflowShortcut()
         toggleTodoShortcutView.setAssociatedUserDefaultsKey(TodoManager.toggleDefaultsKey, withTransformerName: MASDictionaryTransformerName)
         reflowTodoShortcutView.setAssociatedUserDefaultsKey(TodoManager.reflowDefaultsKey, withTransformerName: MASDictionaryTransformerName)
-        showHideTodoModeSettings()
+        showHideTodoModeSettings(animated: false)
     }
     
-    private func showHideTodoModeSettings() {
-        todoView.isHidden = !Defaults.todo.userEnabled
+    private func showHideTodoModeSettings(animated: Bool) {
+        animateChanges(animated: animated) {
+            let isEnabled = Defaults.todo.userEnabled
+            todoView.isHidden = !isEnabled
+            todoViewHeightConstraint.isActive = !isEnabled
+        }
     }
     
     func initializeToggles() {
@@ -265,7 +326,10 @@ class SettingsViewController: NSViewController {
         gapSlider.isContinuous = true
         
         cursorAcrossCheckbox.state = Defaults.moveCursorAcrossDisplays.userEnabled ? .on : .off
-        
+
+        useCursorScreenDetectionCheckbox.isHidden = !Defaults.useCursorScreenDetection.enabled
+        useCursorScreenDetectionCheckbox.state = Defaults.useCursorScreenDetection.enabled ? .on : .off
+
         doubleClickTitleBarCheckbox.state = WindowAction(rawValue: Defaults.doubleClickTitleBar.value - 1) != nil ? .on : .off
 
         if StageUtil.stageCapable {
@@ -274,6 +338,92 @@ class SettingsViewController: NSViewController {
             stageLabel.stringValue = "\(stageSlider.intValue) px"
         } else {
             stageView.isHidden = true
+        }
+        
+        
+        setToggleStatesForCycleSizeCheckboxes()
+    }
+    
+    private func initializeCycleSizesView(animated: Bool = false) {
+        let showOptionsView = Defaults.subsequentExecutionMode.resizes
+        
+        if showOptionsView {
+            setToggleStatesForCycleSizeCheckboxes()
+        }
+        
+        animateChanges(animated: animated) {
+            cycleSizesView.isHidden = !showOptionsView
+            cycleSizesViewHeightConstraint.isActive = !showOptionsView
+        }
+    }
+
+    private func animateChanges(animated: Bool, block: () -> Void) {
+        if animated {
+            NSAnimationContext.runAnimationGroup({context in
+                context.duration = 0.3
+                context.allowsImplicitAnimation = true
+                
+                block()
+                view.layoutSubtreeIfNeeded()
+            }, completionHandler: nil)
+        } else {
+            block()
+        }
+    }
+    
+    private func makeCycleSizeCheckboxes() -> [NSButton] {
+        CycleSize.sortedSizes.map { division in
+            let button = NSButton(checkboxWithTitle: division.title, target: self, action: #selector(didCheckCycleSizeCheckbox(sender:)))
+            button.tag = division.rawValue
+            button.setContentCompressionResistancePriority(.required, for: .vertical)
+            return button
+        }
+    }
+    
+    @objc private func didCheckCycleSizeCheckbox(sender: Any?) {
+        guard let checkbox = sender as? NSButton else {
+            Logger.log("Expected action to be sent from NSButton. Instead, sender is: \(String(describing: sender))")
+            return
+        }
+        
+        let rawValue = checkbox.tag
+        
+        guard let cycleSize = CycleSize(rawValue: rawValue) else {
+            Logger.log("Expected tag of cycle size checkbox to match a value of CycleSize. Got: \(String(describing: rawValue))")
+            return
+        }
+        
+        // If selected cycle sizes has not been changed, write the defaults.
+        if !Defaults.cycleSizesIsChanged.enabled {
+            Defaults.selectedCycleSizes.value = CycleSize.defaultSizes
+        }
+        
+        Defaults.cycleSizesIsChanged.enabled = true
+        
+        if checkbox.state == .on {
+            Defaults.selectedCycleSizes.value.insert(cycleSize)
+        } else {
+            Defaults.selectedCycleSizes.value.remove(cycleSize)
+        }
+    }
+    
+    private func setToggleStatesForCycleSizeCheckboxes() {
+        let useDefaultCycleSizes = !Defaults.cycleSizesIsChanged.enabled
+        let cycleSizes = useDefaultCycleSizes ? CycleSize.defaultSizes : Defaults.selectedCycleSizes.value
+        
+        cycleSizeCheckboxes.forEach { checkbox in
+            guard let cycleSizeForCheckbox = CycleSize(rawValue: checkbox.tag) else {
+                return
+            }
+            
+            let isAlwaysEnabled = cycleSizeForCheckbox.isAlwaysEnabled
+            let isChecked = isAlwaysEnabled || cycleSizes.contains(cycleSizeForCheckbox)
+            checkbox.state = isChecked ? .on : .off
+            
+            // Show that the box cannot be unchecked.
+            if isAlwaysEnabled {
+                checkbox.isEnabled = false
+            }
         }
     }
 

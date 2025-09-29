@@ -11,9 +11,9 @@ import Cocoa
 class ApplicationToggle: NSObject {
     
     private var disabledApps = Set<String>()
-    public private(set) var frontAppId: String? = "com.knollsoft.Rectangle"
-    public private(set) var frontAppName: String? = "Rectangle"
-    public private(set) var shortcutsDisabled: Bool = false
+    public private(set) static var frontAppId: String? = "com.knollsoft.Rectangle"
+    public private(set) static var frontAppName: String? = "Rectangle"
+    public private(set) static var shortcutsDisabled: Bool = false
 
     private let shortcutManager: ShortcutManager
     
@@ -54,30 +54,36 @@ class ApplicationToggle: NSObject {
     }
 
     private func disableShortcuts() {
-        if !self.shortcutsDisabled {
-            self.shortcutsDisabled = true
+        if !Self.shortcutsDisabled {
+            Self.shortcutsDisabled = true
             self.shortcutManager.unbindShortcuts()
+            if !Defaults.ignoreDragSnapToo.userDisabled {
+                Notification.Name.windowSnapping.post(object: false)
+            }
         }
     }
     
     private func enableShortcuts() {
-        if self.shortcutsDisabled {
-            self.shortcutsDisabled = false
+        if Self.shortcutsDisabled {
+            Self.shortcutsDisabled = false
             self.shortcutManager.bindShortcuts()
+            if !Defaults.ignoreDragSnapToo.userDisabled {
+                Notification.Name.windowSnapping.post(object: true)
+            }
         }
     }
 
-    public func disableFrontApp() {
-        if let frontAppId = self.frontAppId {
-            disabledApps.insert(frontAppId)
+    public func disableApp(appBundleId: String? = frontAppId) {
+        if let appBundleId {
+            disabledApps.insert(appBundleId)
             saveDisabledApps()
             disableShortcuts()
         }
     }
     
-    public func enableFrontApp() {
-        if let frontAppId = self.frontAppId {
-            disabledApps.remove(frontAppId)
+    public func enableApp(appBundleId: String? = frontAppId) {
+        if let appBundleId {
+            disabledApps.remove(appBundleId)
             saveDisabledApps()
             enableShortcuts()
         }
@@ -93,8 +99,8 @@ class ApplicationToggle: NSObject {
     
     @objc func receiveFrontAppChangeNote(_ notification: Notification) {
         if let application = notification.userInfo?["NSWorkspaceApplicationKey"] as? NSRunningApplication {
-            self.frontAppId = application.bundleIdentifier
-            self.frontAppName = application.localizedName
+            Self.frontAppId = application.bundleIdentifier
+            Self.frontAppName = application.localizedName
             if let frontAppId = application.bundleIdentifier {
                 if isDisabled(bundleId: frontAppId) {
                     disableShortcuts()
@@ -112,16 +118,15 @@ class ApplicationToggle: NSObject {
             }
         }
     }
-    
 }
 
 // todo mode
 extension ApplicationToggle {
     public func setTodoApp() {
-        Defaults.todoApplication.value = self.frontAppId
+        Defaults.todoApplication.value = Self.frontAppId
     }
 
     public func todoAppIsActive() -> Bool {
-        return Defaults.todoApplication.value == self.frontAppId
+        return Defaults.todoApplication.value == Self.frontAppId
     }
 }

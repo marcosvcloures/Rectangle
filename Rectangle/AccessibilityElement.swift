@@ -69,6 +69,11 @@ class AccessibilityElement {
         return role == .group
     }
     
+    var isTabGroup: Bool? {
+        guard let role = role else { return nil }
+        return role == .tabGroup
+    }
+    
     var isStaticText: Bool? {
         guard let role = role else { return nil }
         return role == .staticText
@@ -155,7 +160,10 @@ class AccessibilityElement {
     }
     
     func getChildElements(_ role: NSAccessibility.Role) -> [AccessibilityElement]? {
-        return childElements?.filter { $0.role == role }
+        guard let elements = (childElements?.filter { $0.role == role }), elements.count > 0 else {
+            return nil
+        }
+        return elements
     }
     
     func getChildElement(_ subrole: NSAccessibility.Subrole) -> AccessibilityElement? {
@@ -163,7 +171,26 @@ class AccessibilityElement {
     }
     
     func getChildElements(_ subrole: NSAccessibility.Subrole) -> [AccessibilityElement]? {
-        return childElements?.filter { $0.subrole == subrole }
+        guard let elements = (childElements?.filter { $0.subrole == subrole }), elements.count > 0 else {
+            return nil
+        }
+        return elements
+    }
+    
+    func getSelfOrChildElementRecursively(_ position: CGPoint) -> AccessibilityElement? {
+        func getChildElement() -> AccessibilityElement? {
+            return element.childElements?
+                .map { (element: $0, frame: $0.frame) }
+                .filter { $0.frame.contains(position) }
+                .min { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }?
+                .element
+        }
+        var element = self
+        var elements = Set<AccessibilityElement>()
+        while let childElement = getChildElement(), elements.insert(childElement).inserted {
+            element = childElement
+        }
+        return element
     }
     
     var windowId: CGWindowID? {
@@ -291,19 +318,27 @@ extension AccessibilityElement {
     }
     
     private static func getWindowInfo(_ location: CGPoint) -> WindowInfo? {
-        let infos = WindowUtil.getWindowList().filter { !["com.apple.dock", "com.apple.WindowManager"].contains($0.bundleIdentifier) }
-        if let info = (infos.first { $0.frame.contains(location) }) {
-            return info
-        }
-        Logger.log("Unable to obtain window info from location")
-        return nil
+        WindowUtil.getWindowList().first(where: {windowInfo in
+            windowInfo.level < 23 // 23 is the level of the Notification Center
+            && !["Dock", "WindowManager"].contains(windowInfo.processName)
+            && windowInfo.frame.contains(location)
+        })
     }
 
     static func getWindowElementUnderCursor() -> AccessibilityElement? {
         let position = NSEvent.mouseLocation.screenFlipped
-        if let element = AccessibilityElement(position), let windowElement = element.windowElement {
-            return windowElement
+        
+        var systemWideFirst = Defaults.systemWideMouseDown.userEnabled
+        if Defaults.systemWideMouseDown.notSet, let frontAppId = ApplicationToggle.frontAppId {
+            systemWideFirst = Defaults.systemWideMouseDownApps.typedValue?.contains(frontAppId) == true
         }
+        
+        if systemWideFirst,
+            let element = AccessibilityElement(position),
+            let windowElement = element.windowElement {
+                return windowElement
+        }
+
         if let info = getWindowInfo(position) {
             if !Defaults.dragFromStage.userDisabled {
                 if StageUtil.stageCapable && StageUtil.stageEnabled,
@@ -316,32 +351,47 @@ extension AccessibilityElement {
             }
             if let windowElements = AccessibilityElement(info.pid).windowElements {
                 if let windowElement = (windowElements.first { $0.windowId == info.id }) {
-                    if Logger.logging {
-                        let appName = NSRunningApplication(processIdentifier: info.pid)?.localizedName ?? ""
-                        Logger.log("Window under cursor fallback matched: \(appName) \(info)")
-                    }
                     return windowElement
                 }
                 if let windowElement = (windowElements.first { $0.frame == info.frame }) {
-                    if Logger.logging {
-                        let appName = NSRunningApplication(processIdentifier: info.pid)?.localizedName ?? ""
-                        Logger.log("Window under cursor fallback matched: \(appName) \(info)")
-                    }
                     return windowElement
                 }
             }
+        }
+        
+        if !systemWideFirst,
+           let element = AccessibilityElement(position),
+           let windowElement = element.windowElement {
+            
+            if Logger.logging, let pid = windowElement.pid {
+                let appName = NSRunningApplication(processIdentifier: pid)?.localizedName ?? ""
+                Logger.log("Window under cursor fallback matched: \(appName)")
+            }
+            return windowElement
         }
         Logger.log("Unable to obtain the accessibility element with the specified attribute at mouse location")
         return nil
     }
     
     static func getWindowElement(_ windowId: CGWindowID) -> AccessibilityElement? {
-        guard let pid = WindowUtil.getWindowList([windowId]).first?.pid else { return nil }
+        guard let pid = WindowUtil.getWindowList(ids: [windowId]).first?.pid else { return nil }
         return AccessibilityElement(pid).windowElements?.first { $0.windowId == windowId }
     }
     
     static func getAllWindowElements() -> [AccessibilityElement] {
         return WindowUtil.getWindowList().uniqueMap { $0.pid }.compactMap { AccessibilityElement($0).windowElements }.flatMap { $0 }
+    }
+}
+
+extension AccessibilityElement: Equatable {
+    static func == (lhs: AccessibilityElement, rhs: AccessibilityElement) -> Bool {
+        return lhs.wrappedElement == rhs.wrappedElement
+    }
+}
+
+extension AccessibilityElement: Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(wrappedElement)
     }
 }
 
@@ -356,7 +406,7 @@ class StageWindowAccessibilityElement: AccessibilityElement {
     
     override var frame: CGRect {
         let frame = super.frame
-        guard !frame.isNull, let windowId = windowId, let info = WindowUtil.getWindowList([windowId]).first else { return frame }
+        guard !frame.isNull, let windowId = windowId, let info = WindowUtil.getWindowList(ids: [windowId]).first else { return frame }
         return .init(origin: info.frame.origin, size: frame.size)
     }
     

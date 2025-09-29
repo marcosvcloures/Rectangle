@@ -8,7 +8,7 @@ Rectangle is a window management app based on Spectacle, written in Swift.
 
 ## System Requirements
 
-Rectangle supports macOS v10.13+.
+Rectangle supports macOS v10.15+. The last version that is supported for macOS 10.13 and 10.14 is https://github.com/rxhanson/Rectangle/releases/tag/v0.73.
 
 ## Installation
 
@@ -37,16 +37,31 @@ Drag a window to the edge of the screen. When the mouse cursor reaches the edge 
 
 ### Ignore an app
 
+Ignoring an app means that when the app is frontmost, keyboard shortcuts are un-registered from macOS. When the app is no longer frontmost, keyboard shortcuts are re-registered with macOS. This is useful for apps that have the same shortcuts like Rectangle and you do not want to change them.
+
 1. Focus the app that you want to ignore (make a window from that app frontmost).
 1. Open the Rectangle menu and select "Ignore app"
 
+To un-ignore an app that you have selected to ignore, simply bring that app frontmost again, open the Rectangle menu, and deselect "Ignore".
+
 ## Execute an action by URL
 
-Open the URL `rectangle://execute-action?name=[name]`. Do not activate Rectangle.
+Open the URL `rectangle://execute-action?name=[name]`. Do not activate Rectangle if possible.
 
-Available values for `[name]`: `left-half`, `right-half`, `center-half`, `top-half`, `bottom-half`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `first-third`, `center-third`, `last-third`, `first-two-thirds`, `last-two-thirds`, `maximize`, `almost-maximize`, `maximize-height`, `smaller`, `larger`, `center`, `restore`, `next-display`, `previous-display`, `move-left`, `move-right`, `move-up`, `move-down`, `first-fourth`, `second-fourth`, `third-fourth`, `last-fourth`, `first-three-fourths`, `last-three-fourths`, `top-left-sixth`, `top-center-sixth`, `top-right-sixth`, `bottom-left-sixth`, `bottom-center-sixth`, `bottom-right-sixth`, `specified`, `reverse-all`, `top-left-ninth`, `top-center-ninth`, `top-right-ninth`, `middle-left-ninth`, `middle-center-ninth`, `middle-right-ninth`, `bottom-left-ninth`, `bottom-center-ninth`, `bottom-right-ninth`, `top-left-third`, `top-right-third`, `bottom-left-third`, `bottom-right-third`, `top-left-eighth`, `top-center-left-eighth`, `top-center-right-eighth`, `top-right-eighth`, `bottom-left-eighth`, `bottom-center-left-eighth`, `bottom-center-right-eighth`, `bottom-right-eighth`, `tile-all`, `cascade-all`
+Available values for `[name]`: `left-half`, `right-half`, `center-half`, `top-half`, `bottom-half`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `first-third`, `center-third`, `last-third`, `first-two-thirds`, `last-two-thirds`, `maximize`, `almost-maximize`, `maximize-height`, `smaller`, `larger`, `center`, `center-prominently`, `restore`, `next-display`, `previous-display`, `move-left`, `move-right`, `move-up`, `move-down`, `first-fourth`, `second-fourth`, `third-fourth`, `last-fourth`, `first-three-fourths`, `last-three-fourths`, `top-left-sixth`, `top-center-sixth`, `top-right-sixth`, `bottom-left-sixth`, `bottom-center-sixth`, `bottom-right-sixth`, `specified`, `reverse-all`, `top-left-ninth`, `top-center-ninth`, `top-right-ninth`, `middle-left-ninth`, `middle-center-ninth`, `middle-right-ninth`, `bottom-left-ninth`, `bottom-center-ninth`, `bottom-right-ninth`, `top-left-third`, `top-right-third`, `bottom-left-third`, `bottom-right-third`, `top-left-eighth`, `top-center-left-eighth`, `top-center-right-eighth`, `top-right-eighth`, `bottom-left-eighth`, `bottom-center-left-eighth`, `bottom-center-right-eighth`, `bottom-right-eighth`, `tile-all`, `cascade-all`, `cascade-active-app`
 
 Example, from a shell: `open -g "rectangle://execute-action?name=left-half"`
+
+URLs can also be used to ignore/unignore apps. 
+
+```
+rectangle://execute-task?name=ignore-app
+rectangle://execute-task?name=unignore-app
+```
+A bundle identifier can also be specified, for example:
+```
+rectangle://execute-task?name=ignore-app&app-bundle-id=com.apple.Safari
+```
 
 ## Terminal Commands for Hidden Preferences
 
@@ -65,7 +80,7 @@ See [TerminalCommands.md](TerminalCommands.md)
 
 ### Rectangle doesn't have the ability to move to other desktops/spaces
 
-Apple never released a public API for Spaces. Other apps that move windows between spaces use unsupported or undesirable ways to achieve this. If Apple decides to release a public API for it, I'll add it in.
+Apple never released a public API for doing this. Rectangle Pro has next/prev Space actions, but there are no plans to add those into Rectangle at this time.
 
 ### Window resizing is off slightly for iTerm2
 
@@ -84,14 +99,26 @@ See issue [317](https://github.com/rxhanson/Rectangle/issues/317).
 
 If windows aren't resizing or moving as you expect, here's some initial steps to get to the bottom of it. Most issues of this type have been caused by other apps.
 
-1. Make sure macOS is up to date, if possible.
-1. Restart your machine.
+1. Make sure macOS is up to date.
+1. Restart your machine (this often fixes things right after a macOS update).
 1. Make sure there are no other window manager applications running.
 1. Make sure that the app whose windows are not behaving properly does not have any conflicting keyboard shortcuts.
 1. Try using the menu items to execute a window action or changing the keyboard shortcut to something different so we can tell if it's a keyboard shortcut issue or not.
 1. Enable debug logging, as per the instructions in the following section.
 1. The logs are pretty straightforward. If your calculated rect and your resulting rect are identical, chances are that there is another application causing issues. Save your logs if needed to attach to an issue if you create one.
 1. If you suspect there may be another application causing issues, try creating and logging in as a new macOS user.
+
+#### Try resetting the macOS accessibility permissions for Rectangle:
+
+```bash
+tccutil reset All com.knollsoft.Rectangle
+```
+
+Or, this can be done with the following steps instead of the tccutil terminal command.
+1. Close Rectangle if it's running
+2. In System Settings -> Privacy & Security -> Accessibility, first disable Rectangle, then remove it with the minus button. (it's important to do both of those steps in that order)
+3. Restart your mac.
+4. Launch Rectangle and enable settings for it as prompted.
 
 ## View Debug Logging
 
@@ -115,19 +142,34 @@ That file can be backed up or transferred to other machines.
 
 If you are using Rectangle v0.44+, you can also use the import/export button in the Preferences pane to share to your preferences and keyboard shortcuts across machines using a JSON file.
 
+> [!NOTE]  
+> If you are having issues with configuration options persisting after an application restart and you've installed using Homebrew, you will need to uninstall and reinstall with the `--zap` flag.
+
+```
+brew uninstall --zap rectangle
+brew install rectangle
+```
+
 ## Uninstallation
 
-Rectangle can be uninstalled by moving it to the trash. Prior to moving it to the trash, you might want to uncheck the box for launching on login to unregister the launcher, but this is not necessary. You can remove the Rectangle defaults from your machine with the following terminal command:
+Rectangle can be uninstalled by quitting the app and moving it to the trash. You can remove the Rectangle defaults from your machine with the following terminal command:
 
 ```bash
 defaults delete com.knollsoft.Rectangle
+```
+
+> [!TIP]  
+> If you are uninstalling after installing with Homebrew, you should include the `--zap` flag to ensure it removes the plist entries too. 
+
+```
+brew uninstall --zap rectangle
 ```
 
 ---
 
 ## Contributing
 
-Logic from Rectangle is used in the [Multitouch](https://multitouch.app) app. The [Rectangle Pro](https://rectangleapp.com/pro) app is entirely built on top of Rectangle. If you contribute significant code or localizations that get merged into Rectangle, you get a free license of Multitouch or Rectangle Pro. Contributors to Sparkle, MASShortcut, or Spectacle can also receive free Multitouch or Rectangle Pro licenses (just send me a direct message on [Gitter](https://gitter.im)).
+Logic from Rectangle is used in the [Multitouch](https://multitouch.app) app. The [Rectangle Pro](https://rectangleapp.com/pro) app is entirely built on top of Rectangle. If you contribute significant code or localizations that get merged into Rectangle, send me an email for a free license of Multitouch or Rectangle Pro. Contributors to Sparkle, MASShortcut, or Spectacle can also receive free Multitouch or Rectangle Pro licenses.
 
 ### Localization
 
@@ -137,8 +179,6 @@ Pull requests for new localizations or improvements on existing localizations ar
 
 ### Running the app in Xcode (for developers)
 
-Rectangle uses [CocoaPods](https://cocoapods.org/) to install Sparkle and MASShortcut.
+Rectangle uses [Swift Package Manager](https://www.swift.org/package-manager/) to install Sparkle and MASShortcut.
 
-1. Make sure CocoaPods is installed and up to date on your machine (`sudo gem install cocoapods`).
-1. Execute `pod install` the root directory of the project.
-1. Open the generated xcworkspace file (`open Rectangle.xcworkspace`).
+The original repository for MASShortcut was archived, so Rectangle uses my [fork](https://github.com/rxhanson/MASShortcut). If you want to make any changes that involve MASShortcut, please make a pull request on my fork.

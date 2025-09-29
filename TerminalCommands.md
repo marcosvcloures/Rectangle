@@ -1,6 +1,6 @@
 # Rectangle Terminal Commands for Hidden Preferences
 
-The preferences window is purposefully slim, but there's a lot that can be modified via Terminal. After executing a terminal command, restart the app as these values are loaded on application startup. For Rectangle Pro, please replace `com.knollsoft.Rectangle` with `com.knollsoft.Hookshot` for the following commands.
+The preferences window is purposefully slim, but there's a lot that can be modified via Terminal. After executing a terminal command, restart the app as these values are loaded on application startup. For Rectangle Pro, please replace `com.knollsoft.Rectangle` with `com.knollsoft.Hookshot` for the following commands. A number of the commands below are for configuring keyboard shortcuts, and you'll need to know the key code and modifier flags integer values. You can use the free [key codes app](https://apps.apple.com/us/app/key-codes/id414568915) to help with this.
 
 ## Contents
 
@@ -16,12 +16,15 @@ The preferences window is purposefully slim, but there's a lot that can be modif
 - [Add extra "ninths" sizing commands](#add-extra-ninths-sizing-commands)
 - [Add extra "eighths" sizing commands](#add-extra-eighths-sizing-commands)
 - [Add additional "thirds" sizing commands](#add-additional-thirds-sizing-commands)
+- [Add doubling/halving window sizing commands](#add-doublinghalving-window-sizing-commands)
 - [Add additional tiling and cascading commands](#add-additional-tiling-and-cascading-commands)
 - [Modify the "footprint" displayed for drag to snap area](#modify-the-footprint-displayed-for-drag-to-snap-area)
 - [Move Up/Down/Left/Right: Don't center on edge](#move-updownleftright-dont-center-on-edge)
 - [Make Smaller limits](#make-smaller-limits)
 - [Make Smaller/Make Larger size increments](#make-smallermake-larger-size-increments)
 - [Make Smaller/Make Larger "curtain resize" with gaps](#make-smallermake-larger-curtain-resize-with-gaps)
+- [Make Smaller/Make Larger width only](#make-smallermake-larger-width-only)
+- [Make Smaller/Make Larger height only](#make-smallermake-larger-height-only)
 - [Disabling window restore when moving windows](#disabling-window-restore-when-moving-windows)
 - [Changing the margin for the snap areas](#changing-the-margin-for-the-snap-areas)
 - [Setting gaps at the screen edges](#setting-gaps-at-the-screen-edges)
@@ -31,10 +34,11 @@ The preferences window is purposefully slim, but there's a lot that can be modif
 - [Move cursor with window](#move-cursor-with-window)
 - [Prevent a window that is quickly dragged above the menu bar from going into Mission Control](#prevent-a-window-that-is-quickly-dragged-above-the-menu-bar-from-going-into-mission-control)
 - [Change the behavior of double-click window title bar](#change-the-behavior-of-double-click-window-title-bar)
+- [Change the order of displays to order by x coordinate](#change-the-order-of-displays-to-order-by-x-coordinate-for-next-and-prev-displays-commands)
 
 ## Keyboard Shortcuts
 
-If you wish to change the default shortcuts after first launch click "Restore Default Shortcuts" in the settings tab of the preferences window. Alternatively you can set it with the following terminal command followed by app restart. True is for the recommended shortcuts, false is for Spectacle's.
+If you wish to change the default shortcuts after first launch click "Restore Default Shortcuts" in the settings tab of the preferences window. Alternatively, you can set it with the following terminal command followed by app restart. True is for the recommended shortcuts, false is for Spectacle's.
 
 ```bash
 defaults write com.knollsoft.Rectangle alternateDefaultShortcuts -bool true
@@ -103,7 +107,7 @@ defaults write com.knollsoft.Rectangle todo -int 1
 
 ## Only allow drag-to-snap when modifier keys are pressed
 
-Modifier key values can be ORed together.
+Modifier keys can be combined by adding the sum of Integer Values together.
 
 | Modifier Key | Integer Value |
 |--------------|---------------|
@@ -133,7 +137,7 @@ defaults write com.knollsoft.Rectangle almostMaximizeWidth -float <VALUE_BETWEEN
 
 ## Add an extra centering command with custom size
 
-This extra command is not available in the UI. You'll need to know which keycode and modifier flags you want (try the free key codes app: <https://apps.apple.com/us/app/key-codes/id414568915>)
+This extra command is not available in the UI. You'll need to know which keycode and modifier flags you want.
 
 ```bash
 defaults write com.knollsoft.Rectangle specified -dict-add keyCode -float 8 modifierFlags -float 1966080
@@ -144,9 +148,24 @@ defaults write com.knollsoft.Rectangle specifiedHeight -float 1050
 defaults write com.knollsoft.Rectangle specifiedWidth -float 1680
 ```
 
+## Add an extra centering with prominence command
+
+There is an extra command that horizontally centers the window but moves up the window vertically slightly from the center to add visual weight. Similar to extra centering you will need to know which keycode and modifier flags you want.
+
+The key code is:
+
+* centerProminently
+
+For example, the command for setting the shortcut to `ctrl option command C` would be:
+
+```bash
+defaults write com.knollsoft.Rectangle centerProminently -dict-add keyCode -float 8 modifierFlags -float 1835305
+```
+
+
 ## Add extra "ninths" sizing commands
 
-Commands for resizing to screen ninths are not available in the UI.  Similar to extra centering you will need to know which keycode and modifier flags you want.
+Commands for resizing to screen ninths are not available in the UI.
 
 The key codes are:
 
@@ -206,6 +225,29 @@ For example, the command for setting the top left two-thirds shortcut to `ctrl o
 defaults write com.knollsoft.Rectangle topLeftThird -dict-add keyCode -float 18 modifierFlags -float 917504
 ```
 
+## Add doubling/halving window sizing commands
+
+These commands for doubling/halving the window width/height are not available in the UI but can be configured via CLI. 
+
+The key codes are:
+
+* doubleHeightUp
+* doubleHeightDown
+* doubleWidthLeft
+* doubleWidthRight
+* halveHeightUp
+* halveHeightDown
+* halveWidthLeft
+* halveWidthRight
+
+The action direction (e.g., "Right") is the direction that the center of the window will move towards as a result of resizing. 
+
+For example, the command for setting the doubleWidthRight shortcut to `ctrl option shift right` would be:
+
+```bash
+defaults write com.knollsoft.Rectangle doubleWidthRight -dict-add keyCode -float 124 modifierFlags -float 11403555
+```
+
 ## Add additional tiling and cascading commands
 
 Commands for tiling and cascading the visible windows are not available in the UI but can be configured via CLI.
@@ -218,7 +260,7 @@ The key codes are:
 
 _tileAll_ and _cascadeAll_ act on all visible windows.
 
-_cascadeActiveApp_ cascades and brings to the front only windows belonging too the currently active (foremost) app, leaving all other windows alonne.
+_cascadeActiveApp_ cascades and brings to the front only windows belonging to the currently active (foremost) app, leaving all other windows alone.
 
 For example, the command for setting the cascadeActiveApp shortcut to `ctrl shift 2` would be:
 
@@ -294,6 +336,28 @@ By default, windows touching the edge of the screen will keep those shared edges
 defaults write com.knollsoft.Rectangle curtainChangeSize -int 2
 ```
 
+## Make Smaller/Make Larger width only
+
+By default, "Make Smaller" and "Make Larger" change both, the window height and the window width. If you only want to change the window width without changing window height, configure shortcuts for the _largerWidth_ and _smallerWidth_ commands.
+
+For example, if you want to assign `ctrl option ]` to _largerWidth_ and `ctrl option [` to _smallerWidth_, the commands would be:
+
+```bash
+defaults write com.knollsoft.Rectangle largerWidth -dict-add keyCode -float 30 modifierFlags -float 786432
+defaults write com.knollsoft.Rectangle smallerWidth -dict-add keyCode -float 33 modifierFlags -float 786432
+```
+
+## Make Smaller/Make Larger height only
+
+Similarly, if you only want to change the window height without changing window width, configure shortcuts for the _largerHeight_ and _smallerHeight_ commands.
+
+For example, if you want to assign `ctrl option shift ]` to _largerHeight_ and `ctrl option shift [` to _smallerHeight_, the commands would be:
+
+```bash
+defaults write com.knollsoft.Rectangle largerHeight -dict-add keyCode -float 30 modifierFlags -float 917504
+defaults write com.knollsoft.Rectangle smallerHeight -dict-add keyCode -float 33 modifierFlags -float 917504
+```
+
 ## Disabling window restore when moving windows
 
 ```bash
@@ -320,6 +384,12 @@ defaults write com.knollsoft.Rectangle screenEdgeGapTop -int 10
 defaults write com.knollsoft.Rectangle screenEdgeGapBottom -int 10
 defaults write com.knollsoft.Rectangle screenEdgeGapLeft -int 10
 defaults write com.knollsoft.Rectangle screenEdgeGapRight -int 10
+```
+
+You can also separately specify the gap for a screen with a notch. Useful for multi display setups if you are using a menubar replacement.
+
+```bash
+defaults write com.knollsoft.Rectangle screenEdgeGapTopNotch -int 5
 ```
 
 If you want these gaps to be applied on your main screen only you can set screenEdgeGapsOnMainScreenOnly. Useful for multi display setups where only one screen has some dock replacement.
@@ -429,4 +499,18 @@ To disable restore when double-clicked again:
 
 ```bash
 defaults write com.knollsoft.Rectangle doubleClickTitleBarRestore -int 2
+```
+
+To disable double-click window title bar only for specific bundle ids (in example, Outlook):
+
+```bash
+defaults write com.knollsoft.Rectangle doubleClickTitleBarIgnoredApps -string "[\"com.microsoft.Outlook\"]"
+```
+
+## Change the order of displays to order by x coordinate for next and prev displays commands
+
+By default, display order is left-to-right, line-by-line. You can change this to be ordered by x coordinate, left-to-right, regardless of which vertical position of the display. This was the default behavior prior to v0.87.
+
+```bash
+defaults write com.knollsoft.Rectangle screensOrderedByX -int 1
 ```

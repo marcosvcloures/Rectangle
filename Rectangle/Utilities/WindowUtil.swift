@@ -10,31 +10,43 @@ import Foundation
 class WindowUtil {
     private static var windowListCache = TimeoutCache<[CGWindowID]?, [WindowInfo]>(timeout: 100)
     
-    static func getWindowList(_ ids: [CGWindowID]? = nil) -> [WindowInfo] {
-        if let infos = windowListCache[ids] { return infos }
-        var infos = [WindowInfo]()
-        var array: CFArray?
-        if let ids = ids {
-            let ptr = UnsafeMutablePointer<UnsafeRawPointer?>.allocate(capacity: ids.count)
-            for i in 0..<ids.count {
-                ptr[i] = UnsafeRawPointer(bitPattern: UInt(ids[i]))
-            }
-            let ids = CFArrayCreate(kCFAllocatorDefault, ptr, ids.count, nil)
-            array = CGWindowListCreateDescriptionFromArray(ids)
-        } else {
-            array = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+    static func getWindowList(ids: [CGWindowID]? = nil, all: Bool = false) -> [WindowInfo] {
+        if let infos = windowListCache[ids] {
+            return infos
         }
-        if let array = array {
-            let count = array.getCount()
+        var infos = [WindowInfo]()
+        var rawInfos: CFArray?
+        if let ids {
+            let values = UnsafeMutablePointer<UnsafeRawPointer?>.allocate(capacity: ids.count)
+            for (i, id) in ids.enumerated() {
+                values[i] = UnsafeRawPointer(bitPattern: UInt(id))
+            }
+            let rawIds = CFArrayCreate(kCFAllocatorDefault, values, ids.count, nil)
+            rawInfos = CGWindowListCreateDescriptionFromArray(rawIds)
+        } else {
+            rawInfos = CGWindowListCopyWindowInfo([all ? .optionAll : .optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        }
+        if let rawInfos {
+            let count = rawInfos.getCount()
             for i in 0..<count {
-                let dictionary = array.getValue(i) as CFDictionary
-                let id = dictionary.getValue(kCGWindowNumber) as CFNumber
-                let frame = (dictionary.getValue(kCGWindowBounds) as CFDictionary).toRect()
-                let pid = dictionary.getValue(kCGWindowOwnerPID) as CFNumber
-                if let frame = frame {
-                    let info = WindowInfo(id: id as! CGWindowID, frame: frame, pid: pid as! pid_t)
-                    infos.append(info)
+                let rawInfo = rawInfos.getValue(i) as CFDictionary
+                let rawId = rawInfo.getValue(kCGWindowNumber) as CFNumber
+                let rawLevel = rawInfo.getValue(kCGWindowLayer) as CFNumber
+                let rawFrame = rawInfo.getValue(kCGWindowBounds) as CFDictionary
+                let rawPid = rawInfo.getValue(kCGWindowOwnerPID) as CFNumber
+                let rawProcessName = rawInfo.getValue(kCGWindowOwnerName) as CFString?
+                let id = CGWindowID(truncating: rawId)
+                let level = CGWindowLevel(truncating: rawLevel)
+                guard let frame = CGRect(dictionaryRepresentation: rawFrame) else {
+                    continue
                 }
+                let pid = pid_t(truncating: rawPid)
+                var processName: String?
+                if let rawProcessName {
+                    processName = String(rawProcessName)
+                }
+                let info = WindowInfo(id: id, level: level, frame: frame, pid: pid, processName: processName)
+                infos.append(info)
             }
         }
         windowListCache[ids] = infos
@@ -44,7 +56,8 @@ class WindowUtil {
 
 struct WindowInfo {
     let id: CGWindowID
+    let level: CGWindowLevel
     let frame: CGRect
     let pid: pid_t
-    var bundleIdentifier: String? { NSRunningApplication(processIdentifier: pid)?.bundleIdentifier }
+    let processName: String?
 }
