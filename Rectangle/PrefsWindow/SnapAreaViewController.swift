@@ -13,6 +13,7 @@ class SnapAreaViewController: NSViewController {
     @IBOutlet weak var windowSnappingCheckbox: NSButton!
     @IBOutlet weak var unsnapRestoreButton: NSButton!
     @IBOutlet weak var animateFootprintCheckbox: NSButton!
+    @IBOutlet weak var hapticFeedbackCheckbox: NSButton!
     @IBOutlet weak var missionControlDraggingCheckbox: NSButton!
 
     @IBOutlet weak var topLeftLandscapeSelect: NSPopUpButton!
@@ -39,6 +40,9 @@ class SnapAreaViewController: NSViewController {
         let newSetting: Bool = sender.state == .on
         Defaults.windowSnapping.enabled = newSetting
         Notification.Name.windowSnapping.post(object: newSetting)
+        if newSetting {
+            MacTilingDefaults.checkForBuiltInTiling(skipIfAlreadyNotified: false)
+        }
     }
     
     @IBAction func toggleUnsnapRestore(_ sender: NSButton) {
@@ -49,6 +53,11 @@ class SnapAreaViewController: NSViewController {
     @IBAction func toggleAnimateFootprint(_ sender: NSButton) {
         let newSetting: Float = sender.state == .on ? 0.75 : 0
         Defaults.footprintAnimationDurationMultiplier.value = newSetting
+    }
+    
+    @IBAction func toggleHapticFeedback(_ sender: NSButton) {
+        let newSetting: Bool = sender.state == .on
+        Defaults.hapticFeedbackOnSnap.enabled = newSetting
     }
     
     @IBAction func toggleMissionControlDragging(_ sender: NSButton) {
@@ -81,25 +90,31 @@ class SnapAreaViewController: NSViewController {
         windowSnappingCheckbox.state = Defaults.windowSnapping.userDisabled ? .off : .on
         unsnapRestoreButton.state = Defaults.unsnapRestore.userDisabled ? .off : .on
         animateFootprintCheckbox.state = Defaults.footprintAnimationDurationMultiplier.value > 0 ? .on : .off
+        hapticFeedbackCheckbox.state = Defaults.hapticFeedbackOnSnap.userEnabled ? .on : .off
         missionControlDraggingCheckbox.state = Defaults.missionControlDragging.userDisabled ? .on : .off
         missionControlDraggingCheckbox.isHidden = !Defaults.missionControlDragging.userDisabled
         loadSnapAreas()
         showHidePortrait()
         
-        Notification.Name.configImported.onPost(using: {_ in
-            self.loadSnapAreas()
+        Notification.Name.configImported.onPost(using: { [weak self] _ in
+            self?.loadSnapAreas()
         })
-        Notification.Name.appWillBecomeActive.onPost() { _ in
-            self.showHidePortrait()
+        Notification.Name.defaultSnapAreas.onPost(using: { [weak self] _ in
+            self?.loadSnapAreas()
+        })
+        Notification.Name.appWillBecomeActive.onPost() { [weak self] _ in
+            self?.showHidePortrait()
         }
-        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil) { _ in
-            self.showHidePortrait()
+        Notification.Name.windowSnapping.onPost { [weak self] _ in
+            self?.windowSnappingCheckbox.state = Defaults.windowSnapping.userDisabled ? .off : .on
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: nil) { [weak self] _ in
+            self?.showHidePortrait()
         }
     }
     
     func showHidePortrait() {
-        let hasPortraitDisplay = NSScreen.screens.contains(where: {!$0.frame.isLandscape})
-        portraitStackView.isHidden = !hasPortraitDisplay
+        portraitStackView.isHidden = !NSScreen.portraitDisplayConnected
     }
     
     func loadSnapAreas() {
@@ -126,8 +141,8 @@ class SnapAreaViewController: NSViewController {
             bottomRightPortraitSelect
         ]
         
-        landscapeSelects.forEach { self.configure(select: $0, orientation: .landscape)}
-        portraitSelects.forEach { self.configure(select: $0, orientation: .portrait)}
+        landscapeSelects.forEach { configure(select: $0, orientation: .landscape)}
+        portraitSelects.forEach { configure(select: $0, orientation: .portrait)}
     }
     
     private func configure(select: NSPopUpButton, orientation: DisplayOrientation) {

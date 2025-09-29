@@ -30,6 +30,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private var prefsWindowController: NSWindowController?
     
+    private var prevActiveAppObservation: NSKeyValueObservation?
+    private var prevActiveApp: NSRunningApplication?
+    
     @IBOutlet weak var mainStatusMenu: NSMenu!
     @IBOutlet weak var unauthorizedMenu: NSMenu!
     @IBOutlet weak var ignoreMenuItem: NSMenuItem!
@@ -38,23 +41,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         Defaults.loadFromSupportDir()
-        if let lastVersion = Defaults.lastVersion.value,
-           let intLastVersion = Int(lastVersion) {
-            if intLastVersion < 46 {
-                MASShortcutMigration.migrate()
-            }
-            if intLastVersion < 64 {
-                SnapAreaModel.instance.migrate()
-            }
-            if intLastVersion < 72 {
-                if #available(macOS 13, *) {
-                    SMLoginItemSetEnabled(AppDelegate.launcherAppId as CFString, false)
-                }
-            }
-        }
-        
-        Defaults.lastVersion.value = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
 
+        checkVersion()
         mainStatusMenu.delegate = self
         statusItem.refreshVisibility()
         checkLaunchOnLogin()
@@ -92,6 +80,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Notification.Name.todoMenuToggled.onPost(using: { _ in
             self.initializeTodo(false)
         })
+        
+        prevActiveAppObservation = NSWorkspace.shared.observe(\.frontmostApplication, options: .old) { workspace, change in
+            self.prevActiveApp = change.oldValue ?? nil
+        }
+    }
+    
+    func checkVersion() {
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        if let lastVersion = Defaults.lastVersion.value,
+           let intLastVersion = Int(lastVersion) {
+            if intLastVersion < 46 {
+                MASShortcutMigration.migrate()
+            }
+            if intLastVersion < 64 {
+                SnapAreaModel.instance.migrate()
+            }
+            if intLastVersion < 72 {
+                if #available(macOS 13, *) {
+                    SMLoginItemSetEnabled(AppDelegate.launcherAppId as CFString, false)
+                }
+            }
+        } else {
+            Defaults.installVersion.value = currentVersion
+            Defaults.allowAnyShortcut.enabled = true
+        }
+        
+        Defaults.lastVersion.value = currentVersion
     }
     
     func applicationWillBecomeActive(_ notification: Notification) {
@@ -107,10 +122,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.windowManager = WindowManager()
         self.shortcutManager = ShortcutManager(windowManager: windowManager)
         self.applicationToggle = ApplicationToggle(shortcutManager: shortcutManager)
-        self.snappingManager = SnappingManager(applicationToggle: applicationToggle)
+        self.snappingManager = SnappingManager()
         self.titleBarManager = TitleBarManager()
         self.initializeTodo()
         checkForProblematicApps()
+        MacTilingDefaults.checkForBuiltInTiling(skipIfAlreadyNotified: true)
     }
     
     func checkForConflictingApps() {
@@ -137,7 +153,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !Defaults.windowSnapping.userDisabled, !Defaults.notifiedOfProblemApps.enabled else { return }
         
         let problemBundleIds: [String] = [
-            "com.mathworks.matlab", "com.live2d.cubism.CECubismEditorApp", "com.aquafold.datastudio.DataStudio"
+            "com.mathworks.matlab",
+            "com.live2d.cubism.CECubismEditorApp",
+            "com.aquafold.datastudio.DataStudio",
+            "com.adobe.illustrator",
+            "com.adobe.AfterEffects"
         ]
         
         // these apps are java based with dynamic bundleIds
@@ -177,7 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             Defaults.notifiedOfProblemApps.enabled = true
         }
     }
-    
+        
     private func showWelcomeWindow() {
         let welcomeWindowController = NSStoryboard(name: "Main", bundle: nil)
             .instantiateController(withIdentifier: "WelcomeWindowController") as? NSWindowController
@@ -225,9 +245,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @IBAction func ignoreFrontMostApp(_ sender: NSMenuItem) {
         if sender.state == .on {
-            applicationToggle.enableFrontApp()
+            applicationToggle.enableApp()
         } else {
-            applicationToggle.disableFrontApp()
+            applicationToggle.disableApp()
         }
     }
     
@@ -279,10 +299,10 @@ extension AppDelegate: NSMenuDelegate {
             return
         }
         
-        if let frontAppName = applicationToggle.frontAppName {
+        if let frontAppName = ApplicationToggle.frontAppName {
             let ignoreString = NSLocalizedString("D99-0O-MB6.title", tableName: "Main", value: "Ignore frontmost.app", comment: "")
             ignoreMenuItem.title = ignoreString.replacingOccurrences(of: "frontmost.app", with: frontAppName)
-            ignoreMenuItem.state = applicationToggle.shortcutsDisabled ? .on : .off
+            ignoreMenuItem.state = ApplicationToggle.shortcutsDisabled ? .on : .off
             ignoreMenuItem.isHidden = false
         } else {
             ignoreMenuItem.isHidden = true
@@ -312,7 +332,7 @@ extension AppDelegate: NSMenuDelegate {
                 menuItem.image?.isTemplate = true
             }
 
-            if !applicationToggle.shortcutsDisabled {
+            if !ApplicationToggle.shortcutsDisabled {
                 if let fullKeyEquivalent = shortcutManager.getKeyEquivalent(action: windowAction),
                     let keyEquivalent = fullKeyEquivalent.0?.lowercased() {
                     menuItem.keyEquivalent = keyEquivalent
@@ -493,7 +513,7 @@ extension AppDelegate {
             return
         }
 
-        if let frontAppName = applicationToggle.frontAppName {
+        if let frontAppName = ApplicationToggle.frontAppName {
             let appString = NSLocalizedString("Use frontmost.app as Todo App", tableName: "Main", value: "", comment: "")
             todoAppMenuItem.title = appString.replacingOccurrences(
                 of: "frontmost.app", with: frontAppName)
@@ -534,16 +554,52 @@ extension AppDelegate: NSWindowDelegate {
 
 extension AppDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { continue }
-            if components.host == "execute-action" && components.path.isEmpty {
-                guard let name = (components.queryItems?.first { $0.name == "name" })?.value else { continue }
-                if let action = (WindowAction.active.first { urlName($0.name) == name }) { action.postUrl() }
+        if NSWorkspace.shared.frontmostApplication == NSRunningApplication.current {
+            prevActiveApp?.activate()
+        }
+        DispatchQueue.main.async {
+            
+            func getUrlName(_ name: String) -> String {
+                return name.map { $0.isUppercase ? "-" + $0.lowercased() : String($0) }.joined()
+            }
+            
+            func extractBundleIdParameter(fromComponents components: URLComponents) -> String? {
+                (components.queryItems?.first { $0.name == "app-bundle-id" })?.value ?? ApplicationToggle.frontAppId
+            }
+            
+            func isValidParameter(bundleId: String?) -> Bool {
+                let isValid = bundleId?.isEmpty != true
+                if !isValid {
+                    Logger.log("Received an empty app-bundle-id parameter. Either pass a valid app bundle id or remove the parameter.")
+                }
+                return isValid
+            }
+            
+            for url in urls {
+                guard
+                    let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+                    components.path.isEmpty
+                else {
+                    continue
+                }
+                    
+                let name = (components.queryItems?.first { $0.name == "name" })?.value
+                switch (components.host, name) {
+                case ("execute-action", _):
+                    let action = (WindowAction.active.first { getUrlName($0.name) == name })
+                    action?.postUrl()
+                case ("execute-task", "ignore-app"):
+                    let bundleId = extractBundleIdParameter(fromComponents: components)
+                    guard isValidParameter(bundleId: bundleId) else { continue }
+                    self.applicationToggle.disableApp(appBundleId: bundleId)
+                case ("execute-task", "unignore-app"):
+                    let bundleId = extractBundleIdParameter(fromComponents: components)
+                    guard isValidParameter(bundleId: bundleId) else { continue }
+                    self.applicationToggle.enableApp(appBundleId: bundleId)
+                default:
+                    continue
+                }
             }
         }
-    }
-    
-    private func urlName(_ name: String) -> String {
-        return name.map { $0.isUppercase ? "-" + $0.lowercased() : String($0) }.joined()
     }
 }

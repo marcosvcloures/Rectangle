@@ -36,10 +36,11 @@ class FootprintWindow: NSWindow {
         let boxView = NSBox()
         boxView.boxType = .custom
         boxView.borderColor = .lightGray
-        boxView.borderType = .lineBorder
         boxView.borderWidth = CGFloat(Defaults.footprintBorderWidth.value)
         
-        if #available(macOS 11.0, *) {
+        if #available(macOS 26.0, *) {
+            boxView.cornerRadius = 16
+        } else if #available(macOS 11.0, *) {
             boxView.cornerRadius = 10
         } else {
             boxView.cornerRadius = 5
@@ -52,7 +53,7 @@ class FootprintWindow: NSWindow {
     
     override var isVisible: Bool {
         // Workaround for footprint getting pushed off of Stage Manager
-        if StageUtil.stageCapable && StageUtil.stageEnabled && StageUtil.stageStripShow && StageUtil.getStageStripWindowGroups().count > 0 {
+        if StageUtil.stageCapable && StageUtil.stageEnabled && StageUtil.stageStripShow {
             return true
         }
         return realIsVisible

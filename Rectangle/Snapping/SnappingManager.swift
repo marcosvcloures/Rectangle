@@ -16,7 +16,12 @@ struct SnapArea: Equatable {
 
 class SnappingManager {
     
-    private let fullIgnoreIds: [String] = Defaults.fullIgnoreBundleIds.typedValue ?? ["com.install4j", "com.mathworks.matlab", "com.live2d.cubism.CECubismEditorApp", "com.aquafold.datastudio.DataStudio"]
+    private let fullIgnoreIds: [String] = Defaults.fullIgnoreBundleIds.typedValue ?? ["com.install4j", 
+                                                                                      "com.mathworks.matlab",
+                                                                                      "com.live2d.cubism.CECubismEditorApp",
+                                                                                      "com.aquafold.datastudio.DataStudio",
+                                                                                      "com.adobe.illustrator",
+                                                                                      "com.adobe.AfterEffects"]
     
     var eventMonitor: EventMonitor?
     var windowElement: AccessibilityElement?
@@ -36,16 +41,13 @@ class SnappingManager {
     var box: FootprintWindow?
 
     let screenDetection = ScreenDetection()
-    let applicationToggle: ApplicationToggle
     
     private let marginTop = Defaults.snapEdgeMarginTop.cgFloat
     private let marginBottom = Defaults.snapEdgeMarginBottom.cgFloat
     private let marginLeft = Defaults.snapEdgeMarginLeft.cgFloat
     private let marginRight = Defaults.snapEdgeMarginRight.cgFloat
     
-    init(applicationToggle: ApplicationToggle) {
-        self.applicationToggle = applicationToggle
-        
+    init() {
         if Defaults.windowSnapping.enabled != false {
             enableSnapping()
         }
@@ -66,13 +68,18 @@ class SnappingManager {
     }
     
     func frontAppChanged(notification: Notification) {
-        if applicationToggle.shortcutsDisabled {
+        if ApplicationToggle.shortcutsDisabled {
             DispatchQueue.main.async {
-                for id in self.fullIgnoreIds {
-                    if self.applicationToggle.frontAppId?.starts(with: id) == true {
-                        self.allowListening = false
-                        self.toggleListening()
-                        break
+                if !Defaults.ignoreDragSnapToo.userDisabled {
+                    self.allowListening = false
+                    self.toggleListening()
+                } else {
+                    for id in self.fullIgnoreIds {
+                        if ApplicationToggle.frontAppId?.starts(with: id) == true {
+                            self.allowListening = false
+                            self.toggleListening()
+                            break
+                        }
                     }
                 }
             }
@@ -219,8 +226,8 @@ class SnappingManager {
             else { return }
             
             if !windowMoving {
-                if currentRect.size == initialWindowRect?.size {
-                    if currentRect.origin != initialWindowRect?.origin {
+                if let initialWindowRect, (currentRect.size == initialWindowRect.size || currentRect.numSharedEdges(withRect: initialWindowRect) < 2) {
+                    if currentRect.origin != initialWindowRect.origin {
                         windowMoving = true
                         unsnapRestore(windowId: windowId, currentRect: currentRect, cursorLoc: event.cgEvent?.location)
                     }
@@ -242,6 +249,11 @@ class SnappingManager {
                     if snapArea == currentSnapArea {
                         return
                     }
+                    
+                    if Defaults.hapticFeedbackOnSnap.userEnabled {
+                        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+                    }
+                    
                     let currentWindow = Window(id: windowId, rect: currentRect)
                     
                     if let newBoxRect = getBoxRect(hotSpot: snapArea, currentWindow: currentWindow) {

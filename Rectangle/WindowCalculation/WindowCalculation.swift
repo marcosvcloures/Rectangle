@@ -128,9 +128,11 @@ class WindowCalculationFactory {
     static let bottomHalfCalculation = BottomHalfCalculation()
     static let topHalfCalculation = TopHalfCalculation()
     static let centerCalculation = CenterCalculation()
+    static let centerProminentlyCalculation = CenterProminentlyCalculation()
     static let nextPrevDisplayCalculation = NextPrevDisplayCalculation()
     static let maximizeCalculation = MaximizeCalculation()
     static let changeSizeCalculation = ChangeSizeCalculation()
+    static let halfOrDoubleDimensionCalculation = HalfOrDoubleDimensionCalculation()
     static let lowerLeftCalculation = LowerLeftCalculation()
     static let lowerRightCalculation = LowerRightCalculation()
     static let upperLeftCalculation = UpperLeftCalculation()
@@ -139,6 +141,7 @@ class WindowCalculationFactory {
     static let firstThirdCalculation = FirstThirdCalculation()
     static let firstTwoThirdsCalculation = FirstTwoThirdsCalculation()
     static let centerThirdCalculation = CenterThirdCalculation()
+    static let centerTwoThirdsCalculation = CenterTwoThirdsCalculation()
     static let lastTwoThirdsCalculation = LastTwoThirdsCalculation()
     static let lastThirdCalculation = LastThirdCalculation()
     static let moveLeftRightCalculation = MoveLeftRightCalculation()
@@ -150,6 +153,7 @@ class WindowCalculationFactory {
     static let thirdFourthCalculation = ThirdFourthCalculation()
     static let lastFourthCalculation = LastFourthCalculation()
     static let firstThreeFourthsCalculation = FirstThreeFourthsCalculation()
+    static let centerThreeFourthsCalculation = CenterThreeFourthsCalculation()
     static let lastThreeFourthsCalculation = LastThreeFourthsCalculation()
     static let topLeftSixthCalculation = TopLeftSixthCalculation()
     static let topCenterSixthCalculation = TopCenterSixthCalculation()
@@ -191,9 +195,14 @@ class WindowCalculationFactory {
      .nextDisplay: nextPrevDisplayCalculation,
      .larger: changeSizeCalculation,
      .smaller: changeSizeCalculation,
+     .largerWidth: changeSizeCalculation,
+     .smallerWidth: changeSizeCalculation,
+     .largerHeight: changeSizeCalculation,
+     .smallerHeight: changeSizeCalculation,
      .bottomHalf: bottomHalfCalculation,
      .topHalf: topHalfCalculation,
      .center: centerCalculation,
+     .centerProminently: centerProminentlyCalculation,
      .bottomLeft: lowerLeftCalculation,
      .bottomRight: lowerRightCalculation,
      .topLeft: upperLeftCalculation,
@@ -201,6 +210,7 @@ class WindowCalculationFactory {
      .firstThird: firstThirdCalculation,
      .firstTwoThirds: firstTwoThirdsCalculation,
      .centerThird: centerThirdCalculation,
+     .centerTwoThirds: centerTwoThirdsCalculation,
      .lastTwoThirds: lastTwoThirdsCalculation,
      .lastThird: lastThirdCalculation,
      .moveLeft: moveLeftRightCalculation,
@@ -214,6 +224,7 @@ class WindowCalculationFactory {
      .thirdFourth: thirdFourthCalculation,
      .lastFourth: lastFourthCalculation,
      .firstThreeFourths: firstThreeFourthsCalculation,
+     .centerThreeFourths: centerThreeFourthsCalculation,
      .lastThreeFourths: lastThreeFourthsCalculation,
      .topLeftSixth: topLeftSixthCalculation,
      .topCenterSixth: topCenterSixthCalculation,
@@ -242,6 +253,14 @@ class WindowCalculationFactory {
      .bottomCenterLeftEighth: bottomCenterLeftEighthCalculation,
      .bottomCenterRightEighth: bottomCenterRightEighthCalculation,
      .bottomRightEighth: bottomRightEighthCalculation,
+     .halveHeightUp: halfOrDoubleDimensionCalculation,
+     .halveHeightDown: halfOrDoubleDimensionCalculation,
+     .halveWidthLeft: halfOrDoubleDimensionCalculation,
+     .halveWidthRight: halfOrDoubleDimensionCalculation,
+     .doubleHeightUp: halfOrDoubleDimensionCalculation,
+     .doubleHeightDown: halfOrDoubleDimensionCalculation,
+     .doubleWidthLeft: halfOrDoubleDimensionCalculation,
+     .doubleWidthRight: halfOrDoubleDimensionCalculation,
      .specified: specifiedCalculation,
      .leftTodo: leftTodoCalculation,
      .rightTodo: rightTodoCalculation

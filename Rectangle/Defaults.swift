@@ -14,6 +14,8 @@ class Defaults {
     static let hideMenuBarIcon = BoolDefault(key: "hideMenubarIcon")
     static let alternateDefaultShortcuts = BoolDefault(key: "alternateDefaultShortcuts") // switch to magnet defaults
     static let subsequentExecutionMode = SubsequentExecutionDefault()
+    static let selectedCycleSizes = CycleSizesDefault()
+    static let cycleSizesIsChanged = BoolDefault(key: "cycleSizesIsChanged")
     static let allowAnyShortcut = BoolDefault(key: "allowAnyShortcut")
     static let windowSnapping = OptionalBoolDefault(key: "windowSnapping")
     static let almostMaximizeHeight = FloatDefault(key: "almostMaximizeHeight")
@@ -27,6 +29,7 @@ class Defaults {
     static let resizeOnDirectionalMove = BoolDefault(key: "resizeOnDirectionalMove")
     static let ignoredSnapAreas = IntDefault(key: "ignoredSnapAreas")
     static let traverseSingleScreen = OptionalBoolDefault(key: "traverseSingleScreen")
+    static let useCursorScreenDetection = BoolDefault(key: "useCursorScreenDetection")
     static let minimumWindowWidth = FloatDefault(key: "minimumWindowWidth")
     static let minimumWindowHeight = FloatDefault(key: "minimumWindowHeight")
     static let sizeOffset = FloatDefault(key: "sizeOffset")
@@ -39,7 +42,9 @@ class Defaults {
     static let screenEdgeGapLeft = FloatDefault(key: "screenEdgeGapLeft", defaultValue: 0)
     static let screenEdgeGapRight = FloatDefault(key: "screenEdgeGapRight", defaultValue: 0)
     static let screenEdgeGapsOnMainScreenOnly = BoolDefault(key: "screenEdgeGapsOnMainScreenOnly")
+    static let screenEdgeGapTopNotch = FloatDefault(key: "screenEdgeGapTopNotch", defaultValue: 0)
     static let lastVersion = StringDefault(key: "lastVersion")
+    static let installVersion = StringDefault(key: "installVersion")
     static let showAllActionsInMenu = OptionalBoolDefault(key: "showAllActionsInMenu")
     static var SUHasLaunchedBefore: Bool { UserDefaults.standard.bool(forKey: "SUHasLaunchedBefore") }
     static let footprintAlpha = FloatDefault(key: "footprintAlpha", defaultValue: 0.3)
@@ -51,6 +56,7 @@ class Defaults {
     static let todoMode = BoolDefault(key: "todoMode")
     static let todoApplication = StringDefault(key: "todoApplication")
     static let todoSidebarWidth = FloatDefault(key: "todoSidebarWidth", defaultValue: 400)
+    static let todoSidebarWidthUnit = IntEnumDefault<TodoSidebarWidthUnit>(key: "todoSidebarWidthUnit", defaultValue: .pixels)
     static let todoSidebarSide = IntEnumDefault<TodoSidebarSide>(key: "todoSidebarSide", defaultValue: .right)
     static let snapModifiers = IntDefault(key: "snapModifiers")
     static let attemptMatchOnNextPrevDisplay = OptionalBoolDefault(key: "attemptMatchOnNextPrevDisplay")
@@ -77,17 +83,27 @@ class Defaults {
     static let missionControlDragging = OptionalBoolDefault(key: "missionControlDragging")
     static let enhancedUI = IntEnumDefault<EnhancedUI>(key: "enhancedUI", defaultValue: .disableEnable)
     static let footprintAnimationDurationMultiplier = FloatDefault(key: "footprintAnimationDurationMultiplier", defaultValue: 0)
+    static let hapticFeedbackOnSnap = OptionalBoolDefault(key: "hapticFeedbackOnSnap")
     static let missionControlDraggingAllowedOffscreenDistance = FloatDefault(key: "missionControlDraggingAllowedOffscreenDistance", defaultValue: 25)
     static let missionControlDraggingDisallowedDuration = IntDefault(key: "missionControlDraggingDisallowedDuration", defaultValue: 250)
     static let doubleClickTitleBar = IntDefault(key: "doubleClickTitleBar")
     static let doubleClickTitleBarRestore = OptionalBoolDefault(key: "doubleClickTitleBarRestore")
-
+    static let doubleClickTitleBarIgnoredApps = JSONDefault<[String]>(key: "doubleClickTitleBarIgnoredApps")
+    static let doubleClickToolBarIgnoredApps = JSONDefault<Set<String>>(key: "doubleClickTitleBarIgnoredApps", defaultValue: ["epp.package.java"])
+    static let ignoreDragSnapToo = OptionalBoolDefault(key: "ignoreDragSnapToo")
+    static let systemWideMouseDown = OptionalBoolDefault(key: "systemWideMouseDown")
+    static let systemWideMouseDownApps = JSONDefault<Set<String>>(key:"systemWideMouseDownApps", defaultValue: Set<String>(["org.languagetool.desktop", "com.microsoft.teams2"]))
+    static let internalTilingNotified = BoolDefault(key: "internalTilingNotified")
+    static let screensOrderedByX = OptionalBoolDefault(key: "screensOrderedByX")
+    
     static var array: [Default] = [
         launchOnLogin,
         disabledApps,
         hideMenuBarIcon,
         alternateDefaultShortcuts,
         subsequentExecutionMode,
+        selectedCycleSizes,
+        cycleSizesIsChanged,
         allowAnyShortcut,
         windowSnapping,
         almostMaximizeHeight,
@@ -113,6 +129,7 @@ class Defaults {
         screenEdgeGapLeft,
         screenEdgeGapRight,
         screenEdgeGapsOnMainScreenOnly,
+        screenEdgeGapTopNotch,
         showAllActionsInMenu,
         footprintAlpha,
         footprintBorderWidth,
@@ -149,8 +166,16 @@ class Defaults {
         missionControlDragging,
         enhancedUI,
         footprintAnimationDurationMultiplier,
+        hapticFeedbackOnSnap,
         missionControlDraggingAllowedOffscreenDistance,
         missionControlDraggingDisallowedDuration,
+        doubleClickTitleBar,
+        doubleClickTitleBarRestore,
+        doubleClickTitleBarIgnoredApps,
+        ignoreDragSnapToo,
+        systemWideMouseDown,
+        systemWideMouseDownApps,
+        screensOrderedByX
     ]
 }
 
@@ -223,6 +248,7 @@ class OptionalBoolDefault: Default {
     
     var userDisabled: Bool { enabled == false }
     var userEnabled: Bool { enabled == true }
+    var notSet: Bool { enabled == nil }
     
     init(key: String) {
         self.key = key
@@ -362,6 +388,13 @@ class JSONDefault<T: Codable>: StringDefault {
         super.init(key: key)
         loadFromJSON()
         typeInitialized = true
+    }
+    
+    init(key: String, defaultValue: T) {
+        if typedValue == nil {
+            typedValue = defaultValue
+        }
+        super.init(key: key)
     }
     
     override func load(from codable: CodableDefault) {
